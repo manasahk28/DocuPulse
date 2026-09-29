@@ -20,11 +20,9 @@ def _extract_text_from_file(file_name: str, file_content: bytes) -> str:
         reader = PdfReader(BytesIO(file_content))
         pages: list[str] = []
         for page in reader.pages:
-            # Try layout mode first (preserves headings, columns, line breaks)
-            text = page.extract_text(extraction_mode="layout") or ""
-            if not text.strip():
-                text = page.extract_text() or ""
-            pages.append(text)
+            text = page.extract_text() or ""
+            if text.strip():
+                pages.append(text)
         return "\n\n".join(pages)
 
     return file_content.decode("utf-8", errors="ignore")

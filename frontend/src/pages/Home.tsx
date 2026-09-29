@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "../components/Sidebar";
 import { Chat } from "../components/Chat";
 import { WelcomeContent } from "../components/WelcomeContent";
 import { ShieldCheck, Menu } from "lucide-react";
+import { wakeBackend } from "../api/client";
 
 export function Home() {
   const [hasUploadedDocument, setHasUploadedDocument] = useState(false);
@@ -11,6 +12,10 @@ export function Home() {
   );
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    wakeBackend();
+  }, []);
 
   function handleUploadSuccess(documentId: string, filename: string) {
     setHasUploadedDocument(true);

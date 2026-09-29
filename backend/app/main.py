@@ -26,10 +26,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: load embedding model and initialize PostgreSQL connection
-    logger.info("Loading embedding model and connecting to PostgreSQL...")
+    # Startup: initialize PostgreSQL connection and pre-warm ONNX model in background
+    logger.info("Connecting to PostgreSQL and warming up embedding model...")
     pipeline = get_rag_pipeline()
-    logger.info("Embedding model loaded. PostgreSQL connected. Groq API ready.")
+    import threading
+    threading.Thread(target=lambda: pipeline.embedding_service.model, daemon=True).start()
+    logger.info("PostgreSQL connected. Groq API ready.")
     yield
     # Shutdown: close the database connection cleanly
     logger.info("Shutting down — closing DB connection...")

@@ -49,7 +49,7 @@ class RAGPipeline:
 
     def __init__(
         self,
-        max_chunk_words: int = 200,
+        max_chunk_words: int = 300,
         top_k: int = 8,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         database_url: str | None = None,

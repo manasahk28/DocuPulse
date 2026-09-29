@@ -24,4 +24,4 @@ class EmbeddingService:
         if not text_list:
             return []
 
-        return [vec.tolist() for vec in self.model.embed(text_list)]
+        return [vec.tolist() for vec in self.model.embed(text_list, batch_size=64)]

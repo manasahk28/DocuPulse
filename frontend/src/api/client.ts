@@ -42,6 +42,12 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+export function wakeBackend(): void {
+  api.get("/health", { timeout: 60000 }).catch(() => {
+    // Ignore errors during background warm-up ping
+  });
+}
+
 export async function uploadDocument(file: File): Promise<UploadResponse> {
   const formData = new FormData();
   formData.append("file", file);
