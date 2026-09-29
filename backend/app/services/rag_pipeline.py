@@ -51,13 +51,13 @@ class RAGPipeline:
         self,
         max_chunk_words: int = 200,
         top_k: int = 8,
-        embedding_model: str = "sentence-transformers/all-mpnet-base-v2",
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         database_url: str | None = None,
     ) -> None:
         self.max_chunk_words = max_chunk_words
         self.top_k = top_k
 
-        # Initialize the embedding model (sentence-transformers, 768-dim vectors)
+        # Initialize the lightweight ONNX embedding service (384-dim vectors)
         self.embedding_service = EmbeddingService(model_name=embedding_model)
 
         # Initialize PostgreSQL + pgvector retrieval service

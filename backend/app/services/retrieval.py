@@ -55,7 +55,27 @@ class RetrievalService:
             # Enable the pgvector extension for vector similarity search
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
 
-            # Table stores each chunk with its embedding vector(768) for cosine search
+            # If an older 768-dim table exists, recreate it for 384-dim ONNX embeddings
+            cur.execute("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'document_chunks'
+                          AND column_name = 'embedding'
+                    ) AND NOT EXISTS (
+                        SELECT 1 FROM pg_attribute a
+                        JOIN pg_class c ON a.attrelid = c.oid
+                        WHERE c.relname = 'document_chunks'
+                          AND a.attname = 'embedding'
+                          AND a.atttypmod = 384
+                    ) THEN
+                        DROP TABLE document_chunks;
+                    END IF;
+                END $$;
+            """)
+
+            # Table stores each chunk with its embedding vector(384) for cosine search
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS document_chunks (
                     id              TEXT PRIMARY KEY,
@@ -63,7 +83,7 @@ class RetrievalService:
                     chunk_index     INTEGER NOT NULL,
                     content         TEXT NOT NULL,
                     source          TEXT NOT NULL DEFAULT 'unknown',
-                    embedding       vector(768) NOT NULL
+                    embedding       vector(384) NOT NULL
                 );
             """)
 

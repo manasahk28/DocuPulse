@@ -2,23 +2,26 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
 
 class EmbeddingService:
-    """Wrapper around sentence-transformers for generating 768-dim dense vectors."""
+    """Lightweight ONNX-based embedding service (fastembed) for 384-dim dense vectors."""
 
-    def __init__(self, model_name: str = "sentence-transformers/all-mpnet-base-v2") -> None:
-        # Load the embedding model once; cached in ~/.cache/huggingface after first download
-        self.model = SentenceTransformer(model_name)
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> None:
+        self.model_name = model_name
+        self._model: TextEmbedding | None = None
+
+    @property
+    def model(self) -> TextEmbedding:
+        if self._model is None:
+            self._model = TextEmbedding(model_name=self.model_name)
+        return self._model
 
     def generate_embeddings(self, texts: Iterable[str]) -> List[List[float]]:
-        """Encode a batch of texts into 768-dimensional float vectors for pgvector storage."""
+        """Encode a batch of texts into 384-dimensional float vectors for pgvector storage."""
         text_list = list(texts)
         if not text_list:
             return []
 
-        # encode() returns numpy array of shape (n_texts, 768)
-        vectors = self.model.encode(text_list, convert_to_numpy=True, show_progress_bar=False)
-        # Convert to list[list[float]] for psycopg2 / pgvector compatibility
-        return vectors.tolist()
+        return [vec.tolist() for vec in self.model.embed(text_list)]
