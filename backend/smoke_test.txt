@@ -1,0 +1,3 @@
+The capital of Pakistan is Islamabad.
+Document Intelligence systems can index text chunks for retrieval.
+FastAPI can expose upload and query endpoints.
