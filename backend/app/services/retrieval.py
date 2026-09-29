@@ -19,8 +19,15 @@ class RetrievalService:
     """PostgreSQL + pgvector integration for document chunk storage and retrieval."""
 
     def __init__(self, database_url: str | None = None) -> None:
-        # Establish persistent connection to PostgreSQL
-        self.database_url = database_url or DATABASE_URL
+        # Establish connection to PostgreSQL (reads latest DATABASE_URL from env)
+        self.database_url = database_url or os.getenv("DATABASE_URL", DATABASE_URL)
+        self._connect()
+
+        # Create the document_chunks table and indexes if they don't exist
+        self._init_schema()
+
+    def _connect(self) -> None:
+        """Open (or reopen) the PostgreSQL connection and register pgvector."""
         self.conn = psycopg2.connect(self.database_url)
         self.conn.autocommit = True
 
@@ -31,8 +38,16 @@ class RetrievalService:
         # Register pgvector type so psycopg2 can handle vector columns
         register_vector(self.conn)
 
-        # Create the document_chunks table and indexes if they don't exist
-        self._init_schema()
+    def _ensure_connection(self) -> None:
+        """Reconnect if the cloud DB (e.g. Neon) closed an idle connection."""
+        try:
+            if self.conn.closed:
+                self._connect()
+            else:
+                with self.conn.cursor() as cur:
+                    cur.execute("SELECT 1;")
+        except Exception:
+            self._connect()
 
     def _init_schema(self) -> None:
         """Create the pgvector extension and document_chunks table on first run."""
@@ -120,6 +135,7 @@ class RetrievalService:
             ))
 
         # Bulk insert using execute_values for efficiency (replacing prior uploads of the same filename)
+        self._ensure_connection()
         with self.conn.cursor() as cur:
             if sources_to_replace:
                 cur.execute(
@@ -192,6 +208,7 @@ class RetrievalService:
             query_params.append(document_id_filter)
         query_params.append(top_k)
 
+        self._ensure_connection()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, query_params)
             rows = cur.fetchall()
@@ -256,6 +273,7 @@ class RetrievalService:
         # params order: rank query_text, WHERE query_text, [filters...], limit
         rank_params: List[Any] = [query_text] + params
 
+        self._ensure_connection()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, rank_params)
             rows = cur.fetchall()
@@ -307,6 +325,7 @@ class RetrievalService:
         """
         params: List[Any] = [document_id] + sorted(new_indices)
 
+        self._ensure_connection()
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params)
             rows = cur.fetchall()
