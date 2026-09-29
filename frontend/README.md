@@ -13,14 +13,13 @@ Frontend for **DocuPulse**, an AI-powered document intelligence system that lets
 | [Axios](https://axios-http.com/)                             | 1.14    | HTTP client                 |
 | [React Markdown](https://github.com/remarkjs/react-markdown) | 10      | Markdown rendering          |
 | [Lucide React](https://lucide.dev/)                          | 0.500   | Icon library                |
-| [Bun](https://bun.sh/)                                       | —       | Package manager & runtime   |
 
 ## Features
 
 - **Document Upload** — Drag-and-drop or browse to upload PDF, DOCX, and TXT files (up to 10 MB)
-- **AI Q&A Chat** — Ask questions about uploaded documents and receive markdown-formatted answers
+- **Conversational AI Q&A** — Ask questions and follow-ups with multi-turn memory grounded in your uploaded documents
 - **Markdown Rendering** — GitHub-flavored markdown support including tables, code blocks, and blockquotes
-- **Dark Theme** — Consistent dark UI with custom scrollbar styling
+- **Mauve Haze Theme** — Curated dark-mode Mauve Haze color palette with custom scrollbar styling
 - **Responsive Layout** — Two-column desktop layout with slide-in sidebar on mobile
 
 ## Project Structure
@@ -33,14 +32,12 @@ src/
 │   ├── Chat.tsx              # Conversation interface with message bubbles
 │   ├── MarkdownMessage.tsx   # Styled markdown renderer for assistant responses
 │   ├── Sidebar.tsx           # File upload sidebar with drag-and-drop
-│   ├── Upload.tsx            # Standalone upload component (alternate layout)
 │   └── WelcomeContent.tsx    # Onboarding screen with feature cards
 ├── hooks/
 │   ├── useChat.ts            # Chat state, message history, and auto-scroll
 │   └── useUpload.ts          # File selection, upload state, and status
 ├── pages/
 │   └── Home.tsx              # Main page layout and state orchestration
-├── assets/                   # Static images (hero.png, logos)
 ├── App.tsx                   # Root component
 ├── main.tsx                  # Entry point
 └── index.css                 # Global styles & Tailwind import
@@ -56,28 +53,28 @@ App
     └── Chat
         ├── WelcomeContent (shown before upload)
         ├── MarkdownMessage (assistant responses)
-        └── useChat hook → api/queryDocument
+        └── useChat hook → api/queryDocument (with conversation history)
 ```
 
-**Data flow:** User uploads a file → `useUpload` calls the backend → on success, chat is enabled → user asks a question → `useChat` queries the backend → markdown response is rendered.
+**Data flow:** User uploads a file → `useUpload` calls the backend → on success, chat is enabled → user asks a question → `useChat` sends the question + chat history to the backend → markdown response is rendered.
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) installed
+- Node.js 18+ & npm
 - Backend API running (defaults to `http://localhost:8000`, configurable via `VITE_API_URL`)
 
 ### Install Dependencies
 
 ```bash
-bun install
+npm install
 ```
 
 ### Run Dev Server
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 The app will be available at `http://localhost:5173`.
@@ -85,19 +82,19 @@ The app will be available at `http://localhost:5173`.
 ### Build for Production
 
 ```bash
-bun run build
+npm run build
 ```
 
 ### Preview Production Build
 
 ```bash
-bun run preview
+npm run preview
 ```
 
 ### Lint
 
 ```bash
-bun run lint
+npm run lint
 ```
 
 ## Environment Variables
