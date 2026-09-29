@@ -3,7 +3,7 @@ import { ChevronLeft, Upload, FolderOpen, Zap, X } from "lucide-react";
 import { useUpload } from "../hooks/useUpload";
 
 interface SidebarProps {
-  onUploadSuccess: () => void;
+  onUploadSuccess: (documentId: string, filename: string) => void;
   uploadedFileName: string | null;
   open: boolean;
   onClose: () => void;

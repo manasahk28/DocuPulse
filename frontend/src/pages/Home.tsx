@@ -6,12 +6,16 @@ import { ShieldCheck, Menu } from "lucide-react";
 
 export function Home() {
   const [hasUploadedDocument, setHasUploadedDocument] = useState(false);
+  const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(
+    null,
+  );
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  function handleUploadSuccess() {
+  function handleUploadSuccess(documentId: string, filename: string) {
     setHasUploadedDocument(true);
-    setUploadedFileName("Document uploaded");
+    setUploadedDocumentId(documentId);
+    setUploadedFileName(filename);
   }
 
   return (
@@ -46,7 +50,7 @@ export function Home() {
         </header>
 
         {/* Center Content / Conversation */}
-        <Chat isEnabled={hasUploadedDocument}>
+        <Chat isEnabled={hasUploadedDocument} documentId={uploadedDocumentId}>
           <WelcomeContent />
         </Chat>
       </main>

@@ -140,11 +140,8 @@ class RetrievalService:
 
         # Build rows: (id, document_id, chunk_index, content, source, embedding)
         rows = []
-        sources_to_replace: set[str] = set()
         for chunk_id, text, embedding, meta in zip(ids, texts, embeddings, metadatas):
             src = meta.get("source", "unknown")
-            if src and src != "unknown":
-                sources_to_replace.add(src)
             rows.append((
                 chunk_id,
                 meta.get("document_id", ""),
@@ -154,14 +151,10 @@ class RetrievalService:
                 embedding,  # pgvector accepts list[float] directly
             ))
 
-        # Bulk insert using execute_values for efficiency (replacing prior uploads of the same filename)
+        # Bulk insert using execute_values for efficiency (clearing prior documents so only the active upload is queried)
         self._ensure_connection()
         with self.conn.cursor() as cur:
-            if sources_to_replace:
-                cur.execute(
-                    "DELETE FROM document_chunks WHERE source = ANY(%s)",
-                    (list(sources_to_replace),),
-                )
+            cur.execute("TRUNCATE TABLE document_chunks;")
             execute_values(
                 cur,
                 """

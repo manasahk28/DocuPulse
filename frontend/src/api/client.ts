@@ -65,11 +65,13 @@ export interface ChatHistoryItem {
 export async function queryDocument(
   question: string,
   history: ChatHistoryItem[] = [],
+  documentId?: string | null,
 ): Promise<QueryResponse> {
   try {
     const response = await api.post<QueryResponse>("/query", {
       question,
       history,
+      ...(documentId ? { document_id_filter: documentId } : {}),
     });
     return response.data;
   } catch (error) {

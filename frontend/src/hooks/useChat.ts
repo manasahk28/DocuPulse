@@ -7,11 +7,17 @@ interface Message {
   content: string;
 }
 
-export function useChat(isEnabled: boolean) {
+export function useChat(isEnabled: boolean, documentId?: string | null) {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
+
+  // Clear previous conversation when a new document is uploaded
+  useEffect(() => {
+    setMessages([]);
+    setQuestion("");
+  }, [documentId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -43,7 +49,7 @@ export function useChat(isEnabled: boolean) {
     setIsLoading(true);
 
     try {
-      const result = await queryDocument(trimmed, historyPayload);
+      const result = await queryDocument(trimmed, historyPayload, documentId);
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),

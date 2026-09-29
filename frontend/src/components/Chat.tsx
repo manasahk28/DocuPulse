@@ -5,12 +5,13 @@ import { MarkdownMessage } from "./MarkdownMessage";
 
 interface ChatProps {
   isEnabled: boolean;
+  documentId?: string | null;
   children: ReactNode;
 }
 
-export function Chat({ isEnabled, children }: ChatProps) {
+export function Chat({ isEnabled, documentId, children }: ChatProps) {
   const { question, setQuestion, messages, isLoading, sendQuestion, endRef } =
-    useChat(isEnabled);
+    useChat(isEnabled, documentId);
 
   const hasMessages = messages.length > 0 || isLoading;
 

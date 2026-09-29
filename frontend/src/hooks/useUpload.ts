@@ -6,7 +6,9 @@ interface UploadStatus {
   message: string;
 }
 
-export function useUpload(onUploadSuccess?: () => void) {
+export function useUpload(
+  onUploadSuccess?: (documentId: string, filename: string) => void,
+) {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<UploadStatus>({
     type: "idle",
@@ -31,10 +33,10 @@ export function useUpload(onUploadSuccess?: () => void) {
       const result = await uploadDocument(file);
       setStatus({
         type: "success",
-        message: `Uploaded \"${result.filename}\" successfully.`,
+        message: `Uploaded "${result.filename}" successfully.`,
       });
       setFile(null);
-      onUploadSuccess?.();
+      onUploadSuccess?.(result.document_id, result.filename);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Upload failed.";
       setStatus({ type: "error", message });
