@@ -136,7 +136,7 @@ Open **http://localhost:5173** in your browser to upload a document and start ch
    - **Environment Variables**: `DATABASE_URL`, `GROQ_API_KEY`, `GROQ_MODEL=openai/gpt-oss-20b`
 3. **Frontend ([Vercel](https://vercel.com))**:
    - **Root Directory**: `frontend`
-   - **Environment Variables**: `VITE_API_URL=https://<your-backend-domain>`
+   - **Environment Variables**: `VITE_API_URL=https://docsystem.onrender.com`
 
 ---
 
