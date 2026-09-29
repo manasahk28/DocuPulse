@@ -52,19 +52,19 @@ export function Sidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col overflow-hidden border-r border-gray-800 bg-[#0f1219] transition-transform duration-300 md:static md:z-auto md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-64 shrink-0 flex-col overflow-hidden border-r border-[#3b2d42] bg-[#140f16] transition-transform duration-300 md:static md:z-auto md:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-800 px-4 py-4">
+        <div className="flex items-center justify-between border-b border-[#3b2d42] px-4 py-4">
           <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-violet-400" />
-            <span className="text-base font-bold text-white">DocuMind</span>
+            <Zap className="h-5 w-5 text-[#d49ab1]" />
+            <span className="text-base font-bold text-[#f5ecf0]">DocuPulse</span>
           </div>
           <button
             onClick={onClose}
-            className="rounded p-1 text-gray-400 hover:bg-gray-800 hover:text-white"
+            className="rounded p-1 text-[#b8a5b0] transition-colors hover:bg-[#302435] hover:text-[#f5ecf0]"
           >
             <X className="h-4 w-4 md:hidden" />
             <ChevronLeft className="hidden h-4 w-4 md:block" />
@@ -76,17 +76,17 @@ export function Sidebar({
           <label
             onDrop={handleDrop}
             onDragOver={handleDragOver}
-            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 transition-colors ${
+            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed bg-[#1b141e]/60 px-4 py-6 transition-colors ${
               isUploading
-                ? "cursor-not-allowed border-gray-700 opacity-50"
-                : "cursor-pointer border-gray-600 hover:border-violet-500"
+                ? "cursor-not-allowed border-[#3b2d42] opacity-50"
+                : "cursor-pointer border-[#4f3d58] hover:border-[#d49ab1] hover:bg-[#251c29]/50"
             }`}
           >
-            <Upload className="h-6 w-6 text-gray-500" />
-            <span className="w-full truncate text-center text-xs text-gray-400">
+            <Upload className="h-6 w-6 text-[#b8a5b0]" />
+            <span className="w-full truncate text-center text-xs text-[#f5ecf0]/90">
               {file ? file.name : "Drag & drop files here, or click to select"}
             </span>
-            <span className="text-center text-[10px] text-gray-500">
+            <span className="text-center text-[10px] text-[#87737f]">
               Supported: PDF, DOCX, TXT (max 10MB)
             </span>
             <input
@@ -102,7 +102,7 @@ export function Sidebar({
           {status.type !== "idle" && status.type !== "loading" && (
             <p
               className={`wrap-break-word text-xs ${
-                status.type === "success" ? "text-green-400" : "text-red-400"
+                status.type === "success" ? "text-emerald-300" : "text-rose-400"
               }`}
             >
               {status.message}
@@ -110,20 +110,20 @@ export function Sidebar({
           )}
 
           {/* Uploaded Documents */}
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-gray-500">
-            <FolderOpen className="h-8 w-8" />
-            <span className="text-xs">
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-[#87737f]">
+            <FolderOpen className="h-8 w-8 text-[#9e627a]" />
+            <span className="text-xs text-[#b8a5b0]">
               {uploadedFileName ?? "No documents uploaded yet"}
             </span>
           </div>
         </div>
 
         {/* Upload Button - bottom */}
-        <div className="border-t border-gray-800 p-4">
+        <div className="border-t border-[#3b2d42] p-4">
           <button
             onClick={handleSubmit as () => void}
             disabled={!file || isUploading}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#9e627a] px-4 py-2.5 text-sm font-medium text-[#f5ecf0] transition-colors hover:bg-[#b2718b] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Upload className="h-4 w-4" />
             {status.type === "loading" ? "Uploading..." : "Upload Document"}

@@ -33,7 +33,7 @@ _COMPARISON_WORDS = {
 }
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 
@@ -215,16 +215,20 @@ class RAGPipeline:
         tokens = set(re.findall(r"[a-z']+", query.lower()))
         return bool(tokens & _NEGATION_WORDS)
 
-    def _generate_query_variations(self, query: str, n: int = 3) -> List[str]:
+    def _generate_query_variations(
+        self,
+        query: str,
+        n: int = 3,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> List[str]:
         """
-        Use Groq LLM to generate N rephrased versions of the user's query.
-        This improves retrieval recall — different phrasings catch different chunks.
+        Use Groq LLM to generate N standalone rephrased versions of the user's query.
+        Uses recent conversation history to resolve follow-ups (e.g. 'are there 2?').
         """
         if not self.groq_api_key:
             return [query]
 
         try:
-            # If the query has negation, instruct the LLM to preserve the negation sense
             negation_hint = ""
             if self._detect_negation(query):
                 negation_hint = (
@@ -233,6 +237,19 @@ class RAGPipeline:
                     "(e.g. 'what is excluded', 'which items are NOT covered'). "
                     "Also include one variation that asks for the POSITIVE side "
                     "(e.g. 'what IS included') so both matching and contrasting passages are retrieved."
+                )
+
+            history_context = ""
+            if history:
+                recent = history[-4:]
+                formatted_turns = "\n".join(
+                    f"{t.get('role', 'user').capitalize()}: {t.get('content', '')}"
+                    for t in recent
+                )
+                history_context = (
+                    f"\nRecent conversation context:\n{formatted_turns}\n"
+                    "If the user's follow-up is brief or refers to earlier turns (e.g. 'is there only 1?', 'I think there are 2'), "
+                    "make sure the generated search queries explicitly include the subject from the conversation!"
                 )
 
             response = httpx.post(
@@ -247,16 +264,18 @@ class RAGPipeline:
                         {
                             "role": "system",
                             "content": (
-                                f"Generate {n} alternative phrasings of the user's question. "
-                                "Each should approach the topic from a different angle. "
-                                "Return ONLY the questions, one per line, numbered. "
+                                f"Generate {n} standalone search queries for retrieving relevant document sections "
+                                "to answer the user's latest question. "
+                                "Each should approach the topic from a different angle or section heading (e.g. Experience, Internships, Education, Projects). "
+                                "Return ONLY the queries, one per line, numbered. "
                                 "Do not include the original question."
                                 f"{negation_hint}"
+                                f"{history_context}"
                             ),
                         },
                         {"role": "user", "content": query},
                     ],
-                    "temperature": 0.7,
+                    "temperature": 0.5,
                     "max_tokens": 200,
                 },
                 timeout=10.0,
@@ -268,7 +287,7 @@ class RAGPipeline:
             variations: List[str] = []
             for line in text.split("\n"):
                 line = re.sub(r"^\d+[\.\)]\s*", "", line.strip())
-                if line and len(line) > 10:
+                if line and len(line) > 5:
                     variations.append(line)
             return variations[:n]
         except Exception:
@@ -276,22 +295,25 @@ class RAGPipeline:
 
     # ── Retrieval ──────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _chunk_dedup_key(c: Dict[str, Any]) -> str:
+        meta = c.get("metadata", {})
+        src = meta.get("source", "")
+        idx = meta.get("chunk_index", 0)
+        if src and src != "unknown":
+            return f"{src}::{idx}"
+        return f"{meta.get('document_id', '')}::{idx}"
+
     def retrieve_relevant_chunks(
         self,
         query: str,
         top_k: int | None = None,
         source_filter: Optional[str] = None,
         document_id_filter: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Multi-query retrieval using pgvector cosine similarity.
-
-        Steps:
-        1. Generate query variations via Groq LLM.
-        2. Embed original query + all variations.
-        3. Run pgvector cosine search for each embedding.
-        4. Merge & deduplicate results, keeping best distance per chunk.
-        5. Take top_k best results, re-ordered by chunk_index.
         """
         cleaned_query = self.load_and_clean_text(query)
         if not cleaned_query:
@@ -299,15 +321,15 @@ class RAGPipeline:
 
         k = top_k or self.top_k
 
-        # Step 1: generate alternative phrasings
-        variations = self._generate_query_variations(cleaned_query, n=3)
+        # Step 1: generate alternative phrasings (informed by conversation history)
+        variations = self._generate_query_variations(cleaned_query, n=3, history=history)
         all_queries = [cleaned_query] + variations
 
         # Step 2: embed all queries at once (batch)
         all_embeddings = self.embedding_service.generate_embeddings(all_queries)
 
-        # Step 3: run search for each query, collecting results
-        seen: Dict[str, Dict[str, Any]] = {}  # chunk_id → best result
+        # Step 3: run search for each query, collecting results deduplicated by (source, chunk_index)
+        seen: Dict[str, Dict[str, Any]] = {}
 
         for embedding in all_embeddings:
             candidates = self.retrieval_service.query(
@@ -317,34 +339,34 @@ class RAGPipeline:
                 document_id_filter=document_id_filter,
             )
             for c in candidates:
-                chunk_id = c.get("metadata", {}).get("document_id", "") + "-" + str(c.get("metadata", {}).get("chunk_index", 0))
-                # Keep the result with the smallest distance (most similar)
+                chunk_id = self._chunk_dedup_key(c)
                 if chunk_id not in seen or c.get("distance", 1.0) < seen[chunk_id].get("distance", 1.0):
                     seen[chunk_id] = c
 
         # Step 3b: keyword / full-text search for exact matches (numbers, acronyms)
-        try:
-            kw_results = self.retrieval_service.keyword_search(
-                query_text=cleaned_query,
-                top_k=k,
-                source_filter=source_filter,
-                document_id_filter=document_id_filter,
-            )
-            for c in kw_results:
-                chunk_id = c.get("metadata", {}).get("document_id", "") + "-" + str(c.get("metadata", {}).get("chunk_index", 0))
-                if chunk_id not in seen or c.get("distance", 1.0) < seen[chunk_id].get("distance", 1.0):
-                    seen[chunk_id] = c
-        except Exception:
-            pass  # full-text column may not exist on older tables; degrade gracefully
+        for q_text in all_queries[:2]:
+            try:
+                kw_results = self.retrieval_service.keyword_search(
+                    query_text=q_text,
+                    top_k=k,
+                    source_filter=source_filter,
+                    document_id_filter=document_id_filter,
+                )
+                for c in kw_results:
+                    chunk_id = self._chunk_dedup_key(c)
+                    if chunk_id not in seen or c.get("distance", 1.0) < seen[chunk_id].get("distance", 1.0):
+                        seen[chunk_id] = c
+            except Exception:
+                pass  # full-text column may not exist on older tables; degrade gracefully
 
         if not seen:
             return []
 
-        # Step 4: rank merged results by distance, take top_k
+        # Step 4: rank merged results by distance, take top_k primary hits
         merged = sorted(seen.values(), key=lambda c: c.get("distance", 1.0))[:k]
+        final_map: Dict[str, Dict[str, Any]] = {self._chunk_dedup_key(c): c for c in merged}
 
-        # Step 5: context window expansion — fetch neighbor chunks (±1)
-        # Groups retrieved chunks by document_id to fetch neighbors per document
+        # Step 5: context window expansion — fetch neighbor chunks (±1) and keep them
         from collections import defaultdict
         doc_chunks: Dict[str, List[int]] = defaultdict(list)
         for c in merged:
@@ -352,7 +374,6 @@ class RAGPipeline:
             chunk_idx = c.get("metadata", {}).get("chunk_index", 0)
             doc_chunks[doc_id].append(chunk_idx)
 
-        # Fetch neighbors and add to seen (dedup by chunk_id)
         for doc_id, indices in doc_chunks.items():
             neighbors = self.retrieval_service.get_neighbor_chunks(
                 document_id=doc_id,
@@ -360,17 +381,15 @@ class RAGPipeline:
                 window=1,
             )
             for n in neighbors:
-                nid = n.get("metadata", {}).get("document_id", "") + "-" + str(n.get("metadata", {}).get("chunk_index", 0))
-                if nid not in seen:
-                    seen[nid] = n
+                nid = self._chunk_dedup_key(n)
+                if nid not in final_map:
+                    final_map[nid] = n
 
-        # Step 6: re-rank all (original + neighbors), take final top_k
-        final = sorted(seen.values(), key=lambda c: c.get("distance", 1.0))[:k]
-
-        # Step 7: re-order by document position for coherent context
+        # Step 6: order by document position for coherent context
+        final = list(final_map.values())
         final.sort(
             key=lambda c: (
-                c.get("metadata", {}).get("document_id", ""),
+                c.get("metadata", {}).get("source", ""),
                 c.get("metadata", {}).get("chunk_index", 0),
             )
         )
@@ -393,16 +412,22 @@ class RAGPipeline:
         tokens = set(re.findall(r"[a-z.]+", query.lower()))
         return bool(tokens & _COMPARISON_WORDS)
 
-    def _build_messages(self, query: str, context: str, chunks: List[Dict[str, Any]] | None = None) -> List[Dict[str, str]]:
+    def _build_messages(
+        self,
+        query: str,
+        context: str,
+        chunks: List[Dict[str, Any]] | None = None,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> List[Dict[str, str]]:
         """Build the chat messages for Groq API."""
         is_comparison = self._detect_comparison_intent(query)
         is_negation = self._detect_negation(query)
 
         rules = [
-            "You are a concise document analyst. Rules:",
+            "You are a thorough and accurate document analyst. Rules:",
             "- Answer ONLY from the provided passages.",
+            "- Carefully scan ALL provided passages before answering so you do not miss any items (e.g., list ALL internships, experiences, projects, or skills mentioned across different sections).",
             "- Be direct. Do not repeat yourself or restate the source of information.",
-            "- Vary your language — avoid using the same phrase more than once.",
             "- Use bullet points or numbered lists for multiple items.",
             "- When presenting tabular or structured data, format it as a Markdown table.",
             "- If the answer is not in the passages, say so briefly.",
@@ -410,7 +435,6 @@ class RAGPipeline:
         ]
 
         if is_comparison:
-            # Determine unique source names for the comparison prompt
             sources: List[str] = []
             if chunks:
                 seen_srcs: set[str] = set()
@@ -433,19 +457,32 @@ class RAGPipeline:
             )
 
         system_msg = "\n".join(rules)
+        messages: List[Dict[str, str]] = [{"role": "system", "content": system_msg}]
+
+        # Include up to the last 6 messages of conversation history for multi-turn continuity
+        if history:
+            for turn in history[-6:]:
+                role = turn.get("role", "user")
+                content = turn.get("content", "")
+                if role in ("user", "assistant") and content:
+                    messages.append({"role": role, "content": content})
+
         user_msg = (
             f"Passages:\n\n{context}\n\n"
             f"Question: {query}"
         )
-        return [
-            {"role": "system", "content": system_msg},
-            {"role": "user", "content": user_msg},
-        ]
+        messages.append({"role": "user", "content": user_msg})
+        return messages
 
     # ── Answer Generation (Groq API) ──────────────────────────────────────
 
-    def generate_answer(self, query: str, retrieved_chunks: List[Dict[str, Any]]) -> str:
-        """Generate an answer using Groq API (Llama 3)."""
+    def generate_answer(
+        self,
+        query: str,
+        retrieved_chunks: List[Dict[str, Any]],
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> str:
+        """Generate an answer using Groq API."""
         if not retrieved_chunks:
             return "I could not find relevant context in the uploaded documents."
 
@@ -453,7 +490,7 @@ class RAGPipeline:
             return "GROQ_API_KEY is not configured. Please set it as an environment variable."
 
         context = self._format_context(retrieved_chunks)
-        messages = self._build_messages(query, context, chunks=retrieved_chunks)
+        messages = self._build_messages(query, context, chunks=retrieved_chunks, history=history)
 
         try:
             response = httpx.post(
@@ -465,9 +502,8 @@ class RAGPipeline:
                 json={
                     "model": self.groq_model,
                     "messages": messages,
-                    "temperature": 0.3,
+                    "temperature": 0.2,
                     "max_tokens": 1024,
-                    "frequency_penalty": 0.6,
                 },
                 timeout=30.0,
             )
@@ -480,7 +516,10 @@ class RAGPipeline:
             return f"Generation failed: {str(e)}"
 
     def generate_answer_stream(
-        self, query: str, retrieved_chunks: List[Dict[str, Any]]
+        self,
+        query: str,
+        retrieved_chunks: List[Dict[str, Any]],
+        history: Optional[List[Dict[str, str]]] = None,
     ) -> Generator[str, None, None]:
         """Stream answer tokens from Groq API."""
         if not retrieved_chunks:
@@ -492,7 +531,7 @@ class RAGPipeline:
             return
 
         context = self._format_context(retrieved_chunks)
-        messages = self._build_messages(query, context, chunks=retrieved_chunks)
+        messages = self._build_messages(query, context, chunks=retrieved_chunks, history=history)
 
         try:
             with httpx.stream(
@@ -505,9 +544,8 @@ class RAGPipeline:
                 json={
                     "model": self.groq_model,
                     "messages": messages,
-                    "temperature": 0.3,
+                    "temperature": 0.2,
                     "max_tokens": 1024,
-                    "frequency_penalty": 0.6,
                     "stream": True,
                 },
                 timeout=30.0,
@@ -537,19 +575,21 @@ class RAGPipeline:
         top_k: int | None = None,
         source_filter: Optional[str] = None,
         document_id_filter: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
     ) -> Dict[str, Any]:
         """
         Full query pipeline:
         1. Retrieve top-k relevant chunks via pgvector cosine similarity.
-        2. Generate answer using flan-t5-base with deterministic decoding.
+        2. Generate grounded answer using Groq LLM with conversation history.
         """
         chunks = self.retrieve_relevant_chunks(
             query=query,
             top_k=top_k,
             source_filter=source_filter,
             document_id_filter=document_id_filter,
+            history=history,
         )
-        answer = self.generate_answer(query=query, retrieved_chunks=chunks)
+        answer = self.generate_answer(query=query, retrieved_chunks=chunks, history=history)
 
         return {
             "answer": answer,
@@ -562,6 +602,7 @@ class RAGPipeline:
         top_k: int | None = None,
         source_filter: Optional[str] = None,
         document_id_filter: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
     ) -> Generator[str, None, None]:
         """Streaming version of answer_query — yields answer tokens incrementally."""
         chunks = self.retrieve_relevant_chunks(
@@ -569,8 +610,9 @@ class RAGPipeline:
             top_k=top_k,
             source_filter=source_filter,
             document_id_filter=document_id_filter,
+            history=history,
         )
-        yield from self.generate_answer_stream(query=query, retrieved_chunks=chunks)
+        yield from self.generate_answer_stream(query=query, retrieved_chunks=chunks, history=history)
 
 
 @lru_cache(maxsize=1)

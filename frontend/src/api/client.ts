@@ -53,9 +53,20 @@ export async function uploadDocument(file: File): Promise<UploadResponse> {
   }
 }
 
-export async function queryDocument(question: string): Promise<QueryResponse> {
+export interface ChatHistoryItem {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function queryDocument(
+  question: string,
+  history: ChatHistoryItem[] = [],
+): Promise<QueryResponse> {
   try {
-    const response = await api.post<QueryResponse>("/query", { question });
+    const response = await api.post<QueryResponse>("/query", {
+      question,
+      history,
+    });
     return response.data;
   } catch (error) {
     throw new Error(getErrorMessage(error, "Query failed"));

@@ -12,10 +12,16 @@ from app.services.rag_pipeline import get_rag_pipeline
 router = APIRouter(prefix="", tags=["query"])
 
 
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
-    top_k: int = Field(default=5, ge=1, le=20)
+    top_k: int = Field(default=8, ge=1, le=20)
     include_context: bool = False
+    history: list[ChatTurn] = Field(default_factory=list)
     # Optional metadata filters for pgvector queries
     source_filter: Optional[str] = Field(default=None, description="Filter by source filename")
     document_id_filter: Optional[str] = Field(default=None, description="Filter by document ID")
@@ -25,6 +31,7 @@ class QueryRequest(BaseModel):
 async def query_document(payload: QueryRequest) -> dict:
     """Standard query endpoint — returns full answer at once."""
     rag_pipeline = get_rag_pipeline()
+    history_dicts = [{"role": t.role, "content": t.content} for t in payload.history]
 
     try:
         response = await run_in_threadpool(
@@ -33,6 +40,7 @@ async def query_document(payload: QueryRequest) -> dict:
             payload.top_k,
             payload.source_filter,
             payload.document_id_filter,
+            history_dicts,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -53,6 +61,7 @@ async def query_document_stream(payload: QueryRequest) -> StreamingResponse:
     Returns answer tokens as a text/event-stream (SSE).
     """
     rag_pipeline = get_rag_pipeline()
+    history_dicts = [{"role": t.role, "content": t.content} for t in payload.history]
 
     def _generate():
         # yield tokens as server-sent events for real-time streaming
@@ -61,6 +70,7 @@ async def query_document_stream(payload: QueryRequest) -> StreamingResponse:
             top_k=payload.top_k,
             source_filter=payload.source_filter,
             document_id_filter=payload.document_id_filter,
+            history=history_dicts,
         ):
             yield f"data: {token}\n\n"
         # Signal end of stream

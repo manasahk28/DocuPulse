@@ -24,10 +24,14 @@ class RetrievalService:
         self.conn = psycopg2.connect(self.database_url)
         self.conn.autocommit = True
 
+        # Ensure the pgvector extension exists BEFORE registering the vector type
+        with self.conn.cursor() as cur:
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+
         # Register pgvector type so psycopg2 can handle vector columns
         register_vector(self.conn)
 
-        # Create the pgvector extension and document_chunks table if they don't exist
+        # Create the document_chunks table and indexes if they don't exist
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -101,18 +105,27 @@ class RetrievalService:
 
         # Build rows: (id, document_id, chunk_index, content, source, embedding)
         rows = []
+        sources_to_replace: set[str] = set()
         for chunk_id, text, embedding, meta in zip(ids, texts, embeddings, metadatas):
+            src = meta.get("source", "unknown")
+            if src and src != "unknown":
+                sources_to_replace.add(src)
             rows.append((
                 chunk_id,
                 meta.get("document_id", ""),
                 meta.get("chunk_index", 0),
                 text,
-                meta.get("source", "unknown"),
+                src,
                 embedding,  # pgvector accepts list[float] directly
             ))
 
-        # Bulk insert using execute_values for efficiency
+        # Bulk insert using execute_values for efficiency (replacing prior uploads of the same filename)
         with self.conn.cursor() as cur:
+            if sources_to_replace:
+                cur.execute(
+                    "DELETE FROM document_chunks WHERE source = ANY(%s)",
+                    (list(sources_to_replace),),
+                )
             execute_values(
                 cur,
                 """

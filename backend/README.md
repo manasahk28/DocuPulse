@@ -1,4 +1,4 @@
-# Document Intelligence System — Backend
+# DocuPulse — Backend
 
 A **Retrieval-Augmented Generation (RAG)** API that lets you upload PDF/text documents, index them into a PostgreSQL vector database, and ask natural-language questions answered by an LLM grounded in your documents.
 

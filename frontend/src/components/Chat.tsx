@@ -30,8 +30,8 @@ export function Chat({ isEnabled, children }: ChatProps) {
                 key={message.id}
                 className={`rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
                   message.role === "user"
-                    ? "ml-auto max-w-[80%] bg-violet-600 text-white"
-                    : "mr-auto max-w-[90%] bg-[#1a1f2e] text-gray-200"
+                    ? "ml-auto max-w-[80%] bg-[#9e627a] text-[#f5ecf0]"
+                    : "mr-auto max-w-[90%] border border-[#3b2d42] bg-[#251c29] text-[#f5ecf0]"
                 }`}
               >
                 {message.role === "assistant" ? (
@@ -43,10 +43,10 @@ export function Chat({ isEnabled, children }: ChatProps) {
             ))}
 
             {isLoading && (
-              <div className="mr-auto flex items-center gap-1.5 rounded-lg bg-[#1a1f2e] px-4 py-2.5">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:0ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:150ms]" />
-                <span className="h-2 w-2 animate-bounce rounded-full bg-gray-400 [animation-delay:300ms]" />
+              <div className="mr-auto flex items-center gap-1.5 rounded-lg border border-[#3b2d42] bg-[#251c29] px-4 py-2.5">
+                <span className="h-2 w-2 animate-bounce rounded-full bg-[#d49ab1] [animation-delay:0ms]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-[#d49ab1] [animation-delay:150ms]" />
+                <span className="h-2 w-2 animate-bounce rounded-full bg-[#d49ab1] [animation-delay:300ms]" />
               </div>
             )}
 
@@ -62,7 +62,7 @@ export function Chat({ isEnabled, children }: ChatProps) {
       {/* Input bar — always pinned at bottom */}
       <form
         onSubmit={handleSubmit}
-        className="flex shrink-0 items-center gap-3 border-t border-gray-800 px-6 py-4"
+        className="flex shrink-0 items-center gap-3 border-t border-[#3b2d42] px-6 py-4"
       >
         <input
           type="text"
@@ -74,12 +74,12 @@ export function Chat({ isEnabled, children }: ChatProps) {
               : "Upload documents first to ask questions"
           }
           disabled={!isEnabled || isLoading}
-          className="min-w-0 flex-1 rounded-lg border border-gray-700 bg-[#1a1f2e] px-4 py-2.5 text-sm text-white outline-none transition-colors placeholder:text-gray-500 focus:border-violet-500 disabled:opacity-50"
+          className="min-w-0 flex-1 rounded-lg border border-[#4f3d58] bg-[#251c29] px-4 py-2.5 text-sm text-[#f5ecf0] outline-none transition-colors placeholder:text-[#87737f] focus:border-[#d49ab1] disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={!isEnabled || isLoading || !question.trim()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-violet-600 text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#9e627a] text-[#f5ecf0] transition-colors hover:bg-[#b2718b] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="h-4 w-4" />
         </button>

@@ -33,12 +33,17 @@ export function useChat(isEnabled: boolean) {
       content: trimmed,
     };
 
+    const historyPayload = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
     setMessages((prev) => [...prev, userMessage]);
     setQuestion("");
     setIsLoading(true);
 
     try {
-      const result = await queryDocument(trimmed);
+      const result = await queryDocument(trimmed, historyPayload);
 
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
